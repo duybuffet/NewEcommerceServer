@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from django.core.wsgi import get_wsgi_application
 from EcommerceAPI.models import *
 from django.core.paginator import Paginator
@@ -88,12 +89,7 @@ def get_books_by_genre(genre_id):
     """
     result = []
     try:
-        list_book_id = BookGenre.objects.filter(genre_id = genre_id).values("book_id")
-        list_id = []
-        for id in list_book_id:
-            list_id.append(id['book_id'])
-
-        list_book = Book.objects.filter(pk__in = list_id).values('id', 'title', 'cover_url', 'price', 'stock',
+        list_book = Book.objects.filter(genre_id=genre_id).values('id', 'title', 'cover_url', 'price', 'stock',
                                                                  'discount')
 
         for book in list_book:
@@ -122,29 +118,44 @@ def get_all_book():
 
 
 def get_book_by_id(book_id):
-    list_author = []
-    list_genre = []
-
-    for genre in BookGenre.objects.filter(book__id=book_id).values("genre_id"):
-        list_genre.append(Genre.objects.filter(id=genre['genre_id']).values("name")[0]["name"])
-
-    for author in BookAuthor.objects.filter(book__id=book_id).values("author_id"):
-        list_author.append(Author.objects.filter(id=author['author_id']).values("name")[0]["name"])
-
     filters = Q(id=book_id)
     book = Book.objects.filter(filters).values("id", "isbn",
                                                "cover_url", "title",
                                                "description", "price",
                                                "discount", "stock",
-                                               "num_pages")
+                                               "num_pages", "author_id", "genre_id", "publisher_id")
     data = {}
     if  len(book) > 0:
+        genre = ""
+        publisher = ""
+        author = ""
+        if book[0]["genre_id"] is not None:
+            genre = Genre.objects.get(pk=book[0]["genre_id"]).name
+        if book[0]["author_id"] is not None:
+            author = Author.objects.get(pk=book[0]["author_id"]).name
+        if book[0]["publisher_id"] is not None:
+            publisher = Publisher.objects.get(pk=book[0]["publisher_id"]).name
+
         data = {"id" : book[0]["id"], "cover_url": book[0]["cover_url"], "description": book[0]["description"],
                 "discount": book[0]["discount"], "num_pages": book[0]["num_pages"], "stock": book[0]["stock"],
                 "isbn": book[0]["isbn"], "title": book[0]["title"], "price": book[0]["price"],
-                "author": list_author, "genre": list_genre}
+                "author": author, "genre": genre, "publisher": publisher}
     return data
 
+
+def get_books_by_ids(list_id):
+    """
+    get id and title of All book
+    :return: list object book
+    """
+    filters = Q(pk__in=list_id)
+    books = Book.objects.filter(filters).values('id', 'title', 'cover_url', 'discount', 'stock', 'price')
+    list_book = []
+    for book in books:
+        title = helper.smart_truncate(book['title'], 60)
+        data = {'id': book['id'], 'title': title, 'cover_url': book['cover_url'], 'discount': book['discount'], 'stock': book['stock'], 'price': book['price']}
+        list_book.append(data)
+    return list_book
 
 # CUSTOMER API
 
@@ -241,62 +252,87 @@ def get_popular_tag_of_book(book_id):
     return result
 
 
+def get_recommend_for_customer(customer_id):
+    list_recommend = Recommendation.objects.filter(customer_id=customer_id).values('book_recommend')
+    if len(list_recommend) > 0:
+        list_book_recommend = list_recommend[0]['book_recommend'].split(' ')
+        return get_books_by_ids(list_book_recommend)
+    return []
+
+
+def save_recommend(customer_id, list_recommend):
+    res = Customer.objects.filter(id=customer_id).values('id')
+    if len(res) > 0:
+        result = Recommendation.objects.filter(customer_id=customer_id).values('id')
+        if len(result) > 0:
+            recommend = Recommendation.objects.get(customer_id=customer_id)
+        else:
+            recommend = Recommendation()
+            recommend.customer_id = customer_id
+        recommend.book_recommend = ' '.join(str(book) for book in list_recommend)
+        recommend.save()
+        return True
+    return False
+
+
+# print save_recommend(5, [49, 57])
+# print get_recommend_for_customer(5)
 # print get_popular_tag_of_book(50)
 # print get_books_of_customer(5)
 # print get_friends_of_customer(1)
 # print get_customer_tag_of_book(50,5)
-def insert_book_to_db(book):
-    insert_book = Book()
-    try:
-        # insert_books = Book.objects.filter(isbn = book["isbn"])
-        # if (len(insert_books) == 0):
-        # insert_book = insert_books[0]
-        insert_book.cover_url = convert_cover(book["cover_url"])
-        insert_book.isbn = book["isbn"]
-        insert_book.description = book["description"]
-        for strip_item in strip_list:
-            if insert_book.description != "" and insert_book.description != None:
-                insert_book.description = insert_book.description.replace(strip_item, "")
-
-        insert_book.num_pages = book["num_pages"]
-        insert_book.title = book["title"]
-        insert_book.price = randint(30,300)
-        insert_book.stock = randint(0, 100)
-        insert_book.discount = 0
-        insert_book.save()
-
-        for a in book["authors"]:
-            author_s = Author.objects.filter(id = a["id"])
-            if len(author_s) > 0:
-                author = author_s[0]
-            else:
-                author = Author()
-                author.id = a["id"]
-                author.name = a["name"]
-                author.save()
-            book_author = BookAuthor()
-            book_author.author = author
-            book_author.book = insert_book
-            book_author.save()
-
-        for s in book["shelves"]:
-            tag_s = Tag.objects.filter(name = s)
-            if len(tag_s) > 0:
-                tag = tag_s[0]
-            else:
-                tag = Tag()
-                tag.name = s
-                tag.save()
-            book_tag = BookTag()
-            book_tag.tag = tag
-            book_tag.book = insert_book
-            book_tag.save()
-    except Exception as inst:
-        # print(inst.message)
-        pass
-    print "insert book success"
-    return insert_book
+# def insert_book_to_db(book):
+#     insert_book = Book()
+#     try:
+#         # insert_books = Book.objects.filter(isbn = book["isbn"])
+#         # if (len(insert_books) == 0):
+#         # insert_book = insert_books[0]
+#         insert_book.cover_url = convert_cover(book["cover_url"])
+#         insert_book.isbn = book["isbn"]
+#         insert_book.description = book["description"]
+#         for strip_item in strip_list:
+#             if insert_book.description != "" and insert_book.description != None:
+#                 insert_book.description = insert_book.description.replace(strip_item, "")
 #
+#         insert_book.num_pages = book["num_pages"]
+#         insert_book.title = book["title"]
+#         insert_book.price = randint(30,300)
+#         insert_book.stock = randint(0, 100)
+#         insert_book.discount = 0
+#         insert_book.save()
+#
+#         for a in book["authors"]:
+#             author_s = Author.objects.filter(id = a["id"])
+#             if len(author_s) > 0:
+#                 author = author_s[0]
+#             else:
+#                 author = Author()
+#                 author.id = a["id"]
+#                 author.name = a["name"]
+#                 author.save()
+#             book_author = BookAuthor()
+#             book_author.author = author
+#             book_author.book = insert_book
+#             book_author.save()
+#
+#         for s in book["shelves"]:
+#             tag_s = Tag.objects.filter(name = s)
+#             if len(tag_s) > 0:
+#                 tag = tag_s[0]
+#             else:
+#                 tag = Tag()
+#                 tag.name = s
+#                 tag.save()
+#             book_tag = BookTag()
+#             book_tag.tag = tag
+#             book_tag.book = insert_book
+#             book_tag.save()
+#     except Exception as inst:
+#         # print(inst.message)
+#         pass
+#     print "insert book success"
+#     return insert_book
+
 
 def insert_book_tag_of_customer(customer_id, book_id, tag_name):
     result = Tag.objects.filter(name=tag_name).values('id')
@@ -349,12 +385,35 @@ def make_friend(u_id_1, u_id_2):
 
 def insert_snippet_of_tag(tag_name):
     tag = Tag.objects.get(name=tag_name)
-    # if tag.snippet == "":
     snippet = wa.get_handle_snippet(tag_name)
     tag.snippet = snippet
     tag.save()
     print "insert %s success"%tag_name
 
+#
+# def change_book_author_to_author():
+#     all = BookAuthor.objects.all()
+#     for book_au in all:
+#         try:
+#             res = Author.objects.filter(name=book_au.author.name).values('id')
+#             if len(res) > 0:
+#                 author = Author()
+#                 author.id = res[0]['id']
+#                 # print "author_id: %d"%author.id
+#             else:
+#                 author = Author()
+#                 author.name = book_au.author.name
+#                 author.save()
+#                 # print "save author_id: %d"%author.id
+#             # print "author_id: %d"%author.id
+#             book = Book.objects.get(pk=book_au.book.id)
+#             book.author_id = author.id
+#             book.save()
+#         except:
+#             pass
+
+
+# change_book_author_to_author()
 
 # list_tag = Tag.objects.filter(id__gte=4849)
 # for tag in list_tag:

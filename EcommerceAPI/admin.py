@@ -3,16 +3,6 @@ from django.contrib import admin
 from .models import *
 
 
-class BookAuthorInline(admin.TabularInline):
-    model = BookAuthor
-    extra = 3
-
-
-class BookGenreInline(admin.TabularInline):
-    model = BookGenre
-    extra = 3
-
-
 class OrderLineInline(admin.TabularInline):
     model = OrderLine
     extra = 3
@@ -20,16 +10,16 @@ class OrderLineInline(admin.TabularInline):
 
 class BookInline(admin.TabularInline):
     model = Book
-    extra = 3
+    extra = 6
 
 
 class AuthorAdmin(admin.ModelAdmin):
-    inlines = [BookAuthorInline]
+    inlines = [BookInline]
     list_display = ['name']
     search_fields = ['name']
 
 class BookAdmin(admin.ModelAdmin):
-    list_display = ('id', 'isbn', 'title', 'price', 'discount', 'stock')
+    list_display = ('id', 'isbn', 'title', 'authors', 'genres', 'price', 'discount', 'stock')
     search_fields = ['id', 'isbn', 'title', 'price']
 
 class OrderHistoryAdmin(admin.ModelAdmin):

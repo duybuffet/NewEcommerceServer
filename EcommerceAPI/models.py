@@ -38,7 +38,7 @@ class Author(models.Model):
         db_table = 'tbl_author'
 
     def __str__(self):
-        return self.name
+        return smart_unicode(self.name)
 
     def __unicode__(self):
         return smart_unicode(self.name)
@@ -87,23 +87,11 @@ class Book(models.Model):
     def __unicode__(self):
         return smart_unicode(self.title)
 
+    def authors(self):
+        return smart_unicode(self.author.name)
 
-class BookAuthor(models.Model):
-    author = models.ForeignKey(Author)
-    book = models.ForeignKey(Book)
-
-    class Meta:
-        managed = False
-        db_table = 'tbl_book_author'
-
-
-class BookGenre(models.Model):
-    book = models.ForeignKey(Book)
-    genre = models.ForeignKey('Genre')
-
-    class Meta:
-        managed = False
-        db_table = 'tbl_book_genre'
+    def genres(self):
+        return smart_unicode(self.genre.name)
 
 
 class BookTag(models.Model):
@@ -249,3 +237,12 @@ class Publisher(models.Model):
 
     def __unicode__(self):
         return smart_unicode(self.name)
+
+
+class Recommendation(models.Model):
+    customer = models.ForeignKey(Customer)
+    book_recommend = models.CharField(max_length=500, blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = 'tbl_recommendation'
